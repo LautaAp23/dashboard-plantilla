@@ -4,7 +4,12 @@ const globalForDev = globalThis as unknown as { __authSecret?: string }
 
 export function getAuthSecret(): string {
   if (process.env.NODE_ENV === "production") {
-    return process.env.NEXTAUTH_SECRET ?? crypto.randomBytes(32).toString("hex")
+    if (!process.env.NEXTAUTH_SECRET) {
+      throw new Error(
+        "NEXTAUTH_SECRET es obligatorio en producción. Generá uno con: openssl rand -base64 32"
+      )
+    }
+    return process.env.NEXTAUTH_SECRET
   }
 
   return (

@@ -4,8 +4,10 @@ import CredentialsProvider from "next-auth/providers/credentials"
 
 import { getAuthSecret } from "@/lib/auth-secret"
 import { prisma } from "@/lib/prisma"
-
-export const INACTIVITY_TIMEOUT_SECONDS = 40 * 60 // 40 minutos
+import {
+  INACTIVITY_TIMEOUT_SECONDS,
+  SESSION_MAX_AGE_SECONDS,
+} from "@/lib/auth-config"
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -42,13 +44,13 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
-        return { id: user.id, email: user.email }
+        return { id: user.id, email: user.email, role: user.role }
       },
     }),
   ],
   session: {
     strategy: "jwt",
-    maxAge: INACTIVITY_TIMEOUT_SECONDS,
+    maxAge: SESSION_MAX_AGE_SECONDS,
   },
   secret: getAuthSecret(),
   pages: {
@@ -61,6 +63,10 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id
         token.email = user.email
+        const role = (user as { role?: string }).role
+        if (role) {
+          token.role = role
+        }
         token.lastActivity = now
         return token
       }
@@ -77,6 +83,9 @@ export const authOptions: NextAuthOptions = {
       if (token && token.id) {
         session.user.id = token.id as string
         session.user.email = token.email as string
+        if (token.role) {
+          session.user.role = token.role as string
+        }
       }
       return session
     },

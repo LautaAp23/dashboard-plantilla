@@ -9,6 +9,7 @@ import { z } from "zod"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Spinner } from "@/components/ui/spinner"
 import {
   Card,
   CardContent,
@@ -35,6 +36,14 @@ const loginSchema = z.object({
 })
 
 type LoginValues = z.infer<typeof loginSchema>
+
+function getSafeCallbackUrl(): string {
+  const raw = new URLSearchParams(window.location.search).get("callbackUrl")
+  if (raw && raw.startsWith("/") && !raw.startsWith("//")) {
+    return raw
+  }
+  return "/home"
+}
 
 export function LoginForm() {
   const router = useRouter()
@@ -68,8 +77,7 @@ export function LoginForm() {
     }
 
     if (result?.ok) {
-      router.push("/home")
-      router.refresh()
+      router.push(getSafeCallbackUrl())
     }
   }
 
@@ -140,9 +148,14 @@ export function LoginForm() {
               className="mt-2 w-full"
               disabled={form.formState.isSubmitting}
             >
-              {form.formState.isSubmitting
-                ? "Ingresando..."
-                : "Iniciar sesión"}
+              {form.formState.isSubmitting ? (
+                <>
+                  <Spinner />
+                  Ingresando...
+                </>
+              ) : (
+                "Iniciar sesión"
+              )}
             </Button>
           </form>
         </Form>

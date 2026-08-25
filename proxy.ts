@@ -2,7 +2,10 @@ import { getToken } from "next-auth/jwt"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-import { INACTIVITY_TIMEOUT_SECONDS } from "@/lib/auth"
+import { isRouteAllowed } from "@/config/modules"
+import {
+  INACTIVITY_TIMEOUT_SECONDS,
+} from "@/lib/auth-config"
 import { getAuthSecret } from "@/lib/auth-secret"
 
 const PUBLIC_ROUTES = ["/login"]
@@ -36,6 +39,10 @@ export async function proxy(request: NextRequest) {
   }
 
   if (token && (isPublicRoute || pathname === "/")) {
+    return NextResponse.redirect(new URL("/home", request.url))
+  }
+
+  if (token && !isRouteAllowed(pathname, token.role as string | undefined)) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 
