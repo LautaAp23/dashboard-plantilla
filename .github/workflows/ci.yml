@@ -56,5 +56,4 @@ jobs:
         run: pnpm build
         env:
           CI: true
-          # Si tu build requiere variables de entorno obligatorias para Prisma, agregalas acá.
-          # DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: "jZ3yX9aB1cD2eF4gH5iJ6kL7mN8oP9qR="
