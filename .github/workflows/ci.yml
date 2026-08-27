@@ -14,57 +14,6 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x]
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🟢 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: 📦 Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 11.21.0
-
-      - name: 📂 Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: 💾 Setup pnpm cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: 📥 Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: 🔨 Build project
-        run: pnpm build
-        env:
-          CI: true
-
-      - name: 🔍 Run linter
-        run: pnpm lint
-        continue-on-error: true
-
-      - name: ✅ Build successful
-        if: success()
-        run: echo "✅ Build and tests passed successfully!"
-
-  code-quality:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -75,9 +24,9 @@ jobs:
           node-version: 20.x
 
       - name: 📦 Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v3 # Actualizado a v3
         with:
-          version: 11.21.0
+          version: 9 # Versión corregida
 
       - name: 📂 Get pnpm store directory
         shell: bash
@@ -92,9 +41,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      # Si no subiste el pnpm-lock.yaml, sacale el --frozen-lockfile por ahora
       - name: 📥 Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: 🔍 Type checking
-        run: pnpm run build
+      - name: 🗄️ Generate Prisma Client
+        run: pnpm prisma generate
+
+      - name: 🔍 Run linter
+        run: pnpm lint
         continue-on-error: true
+
+      - name: 🔨 Build project
+        run: pnpm build
+        env:
+          CI: true
+          NEXTAUTH_SECRET: "jZ3yX9aB1cD2eF4gH5iJ6kL7mN8oP9qR="
