@@ -17,14 +17,17 @@ import {
 import { findModuleByPath, getModulesForRole } from "@/config/modules"
 
 type HeaderProps = {
-  role?: string
+  esAdmin?: boolean
   userEmail?: string | null
 }
 
-export function Header({ role, userEmail }: HeaderProps) {
+export function Header({ esAdmin, userEmail }: HeaderProps) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = React.useState(false)
-  const modules = React.useMemo(() => getModulesForRole(role), [role])
+  const modules = React.useMemo(
+    () => getModulesForRole(esAdmin ?? false),
+    [esAdmin]
+  )
 
   const { module, submodule } = findModuleByPath(pathname)
   const sectionTitle = submodule?.title ?? module?.title ?? "Panel"

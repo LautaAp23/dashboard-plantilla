@@ -61,15 +61,17 @@ export function UserNav({ userEmail }: UserNavProps) {
             </DropdownMenuLabel>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link href="/cuenta" />}>
-            <UserRound />
-            Mi cuenta
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
-            <LogOut />
-            Cerrar sesión
-          </DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem render={<Link href="/cuenta" />}>
+              <UserRound />
+              Mi cuenta
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
+              <LogOut />
+              Cerrar sesión
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </>

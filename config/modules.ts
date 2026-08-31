@@ -1,23 +1,23 @@
 import {
   Circle,
   House,
+  KeyRound,
+  ShieldCheck,
   ShoppingCart,
   TrendingUp,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react"
-
-import type { Role } from "@/app/generated/prisma/client"
 
 export type ModuleItem = {
   title: string
   href: string
   icon: LucideIcon
-  roles?: Role[]
+  /** Solo visible para usuarios con rol admin (es_admin). */
+  adminOnly?: boolean
   items?: ModuleItem[]
 }
-
-const ADMIN_ONLY: Role[] = ["ADMIN"] as Role[]
 
 export const MODULES: ModuleItem[] = [
   {
@@ -26,10 +26,20 @@ export const MODULES: ModuleItem[] = [
     icon: House,
   },
   {
+    title: "Accesos",
+    href: "/accesos",
+    icon: KeyRound,
+    adminOnly: true,
+    items: [
+      { title: "Usuarios", href: "/accesos/usuarios", icon: Users },
+      { title: "Roles", href: "/accesos/roles", icon: ShieldCheck },
+    ],
+  },
+  {
     title: "Compras",
     href: "/compras",
     icon: ShoppingCart,
-    roles: ADMIN_ONLY,
+    adminOnly: true,
     items: [
       { title: "Submódulo 1", href: "/compras/submodulo-1", icon: Circle },
       { title: "Submódulo 2", href: "/compras/submodulo-2", icon: Circle },
@@ -40,7 +50,7 @@ export const MODULES: ModuleItem[] = [
     title: "Ventas",
     href: "/ventas",
     icon: TrendingUp,
-    roles: ADMIN_ONLY,
+    adminOnly: true,
     items: [
       { title: "Submódulo 1", href: "/ventas/submodulo-1", icon: Circle },
       { title: "Submódulo 2", href: "/ventas/submodulo-2", icon: Circle },
@@ -51,7 +61,7 @@ export const MODULES: ModuleItem[] = [
     title: "Sueldos",
     href: "/sueldos",
     icon: Wallet,
-    roles: ADMIN_ONLY,
+    adminOnly: true,
     items: [
       { title: "Submódulo 1", href: "/sueldos/submodulo-1", icon: Circle },
       { title: "Submódulo 2", href: "/sueldos/submodulo-2", icon: Circle },
@@ -60,14 +70,14 @@ export const MODULES: ModuleItem[] = [
   },
 ]
 
-function hasAccess(item: ModuleItem, role?: string): boolean {
-  return !item.roles || (!!role && (item.roles as string[]).includes(role))
+function hasAccess(item: ModuleItem, esAdmin: boolean): boolean {
+  return !item.adminOnly || esAdmin
 }
 
-export function getModulesForRole(role?: string): ModuleItem[] {
-  return MODULES.filter((item) => hasAccess(item, role)).map((item) => ({
+export function getModulesForRole(esAdmin: boolean): ModuleItem[] {
+  return MODULES.filter((item) => hasAccess(item, esAdmin)).map((item) => ({
     ...item,
-    items: item.items?.filter((sub) => hasAccess(sub, role)),
+    items: item.items?.filter((sub) => hasAccess(sub, esAdmin)),
   }))
 }
 
@@ -92,14 +102,14 @@ export function findModuleByPath(pathname: string): {
   return {}
 }
 
-export function isRouteAllowed(pathname: string, role?: string): boolean {
+export function isRouteAllowed(pathname: string, esAdmin: boolean): boolean {
   const { module, submodule } = findModuleByPath(pathname)
 
-  if (submodule && !hasAccess(submodule, role)) {
+  if (submodule && !hasAccess(submodule, esAdmin)) {
     return false
   }
 
-  if (module && !hasAccess(module, role)) {
+  if (module && !hasAccess(module, esAdmin)) {
     return false
   }
 

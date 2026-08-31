@@ -9,7 +9,11 @@ export default function NotFound() {
       <p className="text-sm text-muted-foreground">
         La página que buscás no existe o fue movida.
       </p>
-      <Button variant="outline" render={<Link href="/home" />}>
+      <Button
+        variant="outline"
+        nativeButton={false}
+        render={<Link href="/home" />}
+      >
         Volver al inicio
       </Button>
     </div>

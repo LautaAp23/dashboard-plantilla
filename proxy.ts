@@ -42,7 +42,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 
-  if (token && !isRouteAllowed(pathname, token.role as string | undefined)) {
+  if (token && !isRouteAllowed(pathname, token.esAdmin ?? false)) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 
