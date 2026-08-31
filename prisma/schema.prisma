@@ -12,13 +12,31 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Role {
-  ADMIN
+model Rol {
+  id_rol                  String   @id @default(cuid())
+  nombre_rol              String   @unique
+  es_admin                Boolean  @default(false)
+  fechayhora_rol          DateTime @default(now())
+  estado_rol              Boolean  @default(true)
+  usuario_creador         String
+
+  usuarios User[]
 }
 
 model User {
-  id       String @id @default(cuid())
-  email    String @unique
-  password String
-  role     Role   @default(ADMIN)
+  id                      String   @id @default(cuid())
+  email_user              String   @unique
+  password_user           String
+  id_rol                  String
+  rol                     Rol      @relation(fields: [id_rol], references: [id_rol])
+  nombreyapellido_user    String
+  dni_user                String   @unique
+  direccion_user          String?
+  telefono_user           String?
+  fechayhora_user         DateTime @default(now())
+  ultima_conexion_user    DateTime?
+  usuario_creador         String
+  usuario_modificador     String?
+  fechayhora_modificacion DateTime @updatedAt
+  estado_user             Boolean  @default(true)
 }

@@ -6,11 +6,11 @@ import { SidebarNav } from "@/components/layout/sidebar-nav"
 import { getModulesForRole } from "@/config/modules"
 
 type SidebarProps = {
-  role?: string
+  esAdmin?: boolean
 }
 
-export function Sidebar({ role }: SidebarProps) {
-  const modules = getModulesForRole(role)
+export function Sidebar({ esAdmin }: SidebarProps) {
+  const modules = getModulesForRole(esAdmin ?? false)
 
   return (
     <aside className="sticky top-0 hidden h-svh w-64 shrink-0 flex-col border-r bg-card md:flex">
