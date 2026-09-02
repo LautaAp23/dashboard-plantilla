@@ -1,40 +1,24 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import type {
   ActualizarUsuarioInput,
   CrearUsuarioInput,
 } from "@/lib/usuarios/schemas"
-import type { ListarUsuariosResult, UsuarioListado } from "@/lib/usuarios/queries"
+import type { ListarUsuariosResult } from "@/lib/usuarios/queries"
 import type {
   ListarUsuariosFiltros,
   ResultadoAccion,
 } from "@/lib/usuarios/types"
 
-/**
- * Hook cliente del módulo de usuarios.
- * Flujo: UI → hook → endpoint HTTP → servicio → Prisma.
- *
- * - Solo consume endpoints HTTP (no toca Prisma ni server actions).
- * - fetch con credentials incluido (sesión de cookies) y cache: no-store.
- * - Expone estados de loading/error/data y funciones para cada operación.
- */
-
 const API_BASE = "/api/usuarios"
-
-type ListaEstado = {
-  data: ListarUsuariosResult | null
-  cargando: boolean
-  error: string | null
-}
 
 function extraerMensaje(error: unknown): string {
   if (error instanceof Error) return error.message
   return "Ocurrió un error inesperado"
 }
 
-// fetch con credenciales y cabeceras comunes para mutaciones.
 async function peticion(
   url: string,
   init?: RequestInit
@@ -50,7 +34,6 @@ async function peticion(
   })
 }
 
-// Procesa la respuesta estándar { ok: true, data } | { ok: false, error: {...} }.
 async function procesar<T>(respuesta: Response): Promise<T> {
   let cuerpo: { ok: boolean; data?: T; error?: { message?: string } } | null
   try {
@@ -83,128 +66,119 @@ function construirUrlLista(filtros: ListarUsuariosFiltros): string {
   return qs ? `${API_BASE}?${qs}` : API_BASE
 }
 
-export function useUsuarios() {
-  const [lista, setLista] = useState<ListaEstado>({
-    data: null,
-    cargando: false,
-    error: null,
+export function useUsuarios(filtros: ListarUsuariosFiltros) {
+  const queryClient = useQueryClient()
+
+  const listarQuery = useQuery({
+    queryKey: ["usuarios", filtros],
+    queryFn: async () => {
+      const data = await peticion(construirUrlLista(filtros)).then((r) =>
+        procesar<ListarUsuariosResult>(r)
+      )
+      return data
+    },
   })
-  const [accionPendiente, setAccionPendiente] = useState<string | null>(null)
 
-  /** Carga / recarga el listado con los filtros dados. Devuelve el resultado o null. */
-  const listarUsuarios = useCallback(
-    async (filtros: ListarUsuariosFiltros): Promise<ListarUsuariosResult | null> => {
-      setLista((prev) => ({ ...prev, cargando: true, error: null }))
-      try {
-        const data = await peticion(construirUrlLista(filtros)).then((r) =>
-          procesar<ListarUsuariosResult>(r)
-        )
-        setLista({ data, cargando: false, error: null })
-        return data
-      } catch (error) {
-        const mensaje = extraerMensaje(error)
-        setLista({ data: null, cargando: false, error: mensaje })
-        return null
-      }
+  const crearMutation = useMutation({
+    mutationFn: async (input: CrearUsuarioInput) => {
+      const respuesta = await peticion(API_BASE, {
+        method: "POST",
+        body: JSON.stringify(input),
+      })
+      await procesar(respuesta)
     },
-    []
-  )
-
-  /** Obtiene el detalle de un usuario. */
-  const obtenerUsuario = useCallback(
-    async (id: string): Promise<UsuarioListado | null> => {
-      try {
-        const respuesta = await peticion(`${API_BASE}/${id}`)
-        return await procesar<UsuarioListado>(respuesta)
-      } catch {
-        return null
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] })
     },
-    []
-  )
+  })
 
-  /** Crea un usuario. */
-  const crearUsuario = useCallback(
-    async (input: CrearUsuarioInput): Promise<ResultadoAccion> => {
-      setAccionPendiente("crear")
-      try {
-        const respuesta = await peticion(API_BASE, {
-          method: "POST",
-          body: JSON.stringify(input),
-        })
-        await procesar(respuesta)
-        return { success: true }
-      } catch (error) {
-        return { success: false, error: extraerMensaje(error) }
-      } finally {
-        setAccionPendiente(null)
-      }
+  const actualizarMutation = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: ActualizarUsuarioInput }) => {
+      const respuesta = await peticion(`${API_BASE}/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+      await procesar(respuesta)
     },
-    []
-  )
-
-  const actualizarUsuario = useCallback(
-    async (
-      id: string,
-      input: ActualizarUsuarioInput
-    ): Promise<ResultadoAccion> => {
-      setAccionPendiente("actualizar")
-      try {
-        const respuesta = await peticion(`${API_BASE}/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(input),
-        })
-        await procesar(respuesta)
-        return { success: true }
-      } catch (error) {
-        return { success: false, error: extraerMensaje(error) }
-      } finally {
-        setAccionPendiente(null)
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] })
     },
-    []
-  )
+  })
 
-  async function cambiarEstado(
-    id: string,
-    accion: "baja" | "reactivar"
-  ): Promise<ResultadoAccion> {
-    setAccionPendiente(id)
-    try {
-      const respuesta = await peticion(`${API_BASE}/${id}/${accion}`, {
+  const bajaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const respuesta = await peticion(`${API_BASE}/${id}/baja`, {
         method: "POST",
       })
       await procesar(respuesta)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: extraerMensaje(error) }
-    } finally {
-      setAccionPendiente(null)
-    }
-  }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] })
+    },
+  })
 
-  const darDeBaja = useCallback(
-    (id: string) => cambiarEstado(id, "baja"),
-    []
-  )
-  const reactivar = useCallback(
-    (id: string) => cambiarEstado(id, "reactivar"),
-    []
-  )
+  const reactivarMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const respuesta = await peticion(`${API_BASE}/${id}/reactivar`, {
+        method: "POST",
+      })
+      await procesar(respuesta)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["usuarios"] })
+    },
+  })
 
   return {
-    // Estado del listado
-    data: lista.data,
-    cargando: lista.cargando,
-    errorLista: lista.error,
-    // Estado compartido de mutaciones
-    accionPendiente,
-    // Funciones
-    listarUsuarios,
-    obtenerUsuario,
-    crearUsuario,
-    actualizarUsuario,
-    darDeBaja,
-    reactivar,
+    data: listarQuery.data ?? null,
+    cargando: listarQuery.isLoading,
+    errorLista: listarQuery.error ? extraerMensaje(listarQuery.error) : null,
+
+    crearUsuario: async (input: CrearUsuarioInput): Promise<ResultadoAccion> => {
+      try {
+        await crearMutation.mutateAsync(input)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    actualizarUsuario: async (
+      id: string,
+      input: ActualizarUsuarioInput
+    ): Promise<ResultadoAccion> => {
+      try {
+        await actualizarMutation.mutateAsync({ id, input })
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    darDeBaja: async (id: string): Promise<ResultadoAccion> => {
+      try {
+        await bajaMutation.mutateAsync(id)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    reactivar: async (id: string): Promise<ResultadoAccion> => {
+      try {
+        await reactivarMutation.mutateAsync(id)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    accionPendiente: crearMutation.isPending
+      ? "crear"
+      : actualizarMutation.isPending
+        ? "actualizar"
+        : bajaMutation.isPending || reactivarMutation.isPending
+          ? "accion"
+          : null,
   }
 }

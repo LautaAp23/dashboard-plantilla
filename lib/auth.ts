@@ -45,6 +45,9 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        // Verificar si es el primer inicio de sesión
+        const esPrimerLogin = user.primer_login === true
+
         prisma.user
           .update({
             where: { id: user.id },
@@ -59,6 +62,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email_user,
           role: user.rol?.nombre_rol,
           esAdmin: Boolean(user.rol?.es_admin && user.rol?.estado_rol),
+          primer_login: esPrimerLogin,
         }
       },
     }),
@@ -87,6 +91,9 @@ export const authOptions: NextAuthOptions = {
           token.esAdmin = esAdmin
         }
         token.lastActivity = now
+        token.primer_login = Boolean(
+          (user as { primer_login?: boolean }).primer_login
+        )
         return token
       }
 
@@ -96,6 +103,24 @@ export const authOptions: NextAuthOptions = {
       }
 
       token.lastActivity = now
+
+      // Sincronizar primer_login desde la BD cuando sigue en true. Así, tras
+      // un cambio de contraseña exitoso (primer_login pasa a false en BD), el
+      // JWT se actualiza y el middleware deja de forzar al usuario a /login.
+      try {
+        if (token.id && token.primer_login) {
+          const usuario = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { primer_login: true },
+          })
+          if (usuario && !usuario.primer_login) {
+            token.primer_login = false
+          }
+        }
+      } catch {
+        // Ignora errores de BD: se conserva el valor previo del token.
+      }
+
       return token
     },
     async session({ session, token }) {
@@ -108,6 +133,7 @@ export const authOptions: NextAuthOptions = {
         if (token.esAdmin !== undefined) {
           session.user.esAdmin = token.esAdmin as boolean
         }
+        session.user.primer_login = Boolean(token.primer_login)
       }
       return session
     },

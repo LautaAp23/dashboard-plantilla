@@ -108,17 +108,23 @@ export function RolesClient({ filtros }: RolesClientProps) {
   const pathname = usePathname()
   const { confirm, ConfirmDialog } = useConfirm()
 
+  const filtrosQuery = {
+    q: filtros.q,
+    estado: filtros.estado,
+    page: filtros.page,
+    por: filtros.porPagina,
+  }
+
   const {
     data,
     cargando,
     errorLista,
-    listarRoles,
     crearRol,
     actualizarRol,
     darDeBaja,
     reactivar,
     accionPendiente,
-  } = useRoles()
+  } = useRoles(filtrosQuery)
 
   const [busquedaLocal, setBusquedaLocal] = useState(filtros.q)
   const [prevQ, setPrevQ] = useState(filtros.q)
@@ -130,21 +136,6 @@ export function RolesClient({ filtros }: RolesClientProps) {
   }
   const [crearAbierto, setCrearAbierto] = useState(false)
   const [editar, setEditar] = useState<RolListado | null>(null)
-
-  useEffect(() => {
-    listarRoles({
-      q: filtros.q,
-      estado: filtros.estado,
-      page: filtros.page,
-      por: filtros.porPagina,
-    })
-  }, [
-    filtros.q,
-    filtros.estado,
-    filtros.page,
-    filtros.porPagina,
-    listarRoles,
-  ])
 
   // Los errores del listado se muestran como notificación, no arriba de la card.
   useEffect(() => {
@@ -202,12 +193,6 @@ export function RolesClient({ filtros }: RolesClientProps) {
       return
     }
     toast.success("Rol dado de baja")
-    await listarRoles({
-      q: filtros.q,
-      estado: filtros.estado,
-      page: filtros.page,
-      por: filtros.porPagina,
-    })
   }
 
   async function manejarReactivar(rol: RolListado) {
@@ -224,12 +209,6 @@ export function RolesClient({ filtros }: RolesClientProps) {
       return
     }
     toast.success("Rol reactivado")
-    await listarRoles({
-      q: filtros.q,
-      estado: filtros.estado,
-      page: filtros.page,
-      por: filtros.porPagina,
-    })
   }
 
   const dataLista = data ?? {
@@ -509,15 +488,9 @@ export function RolesClient({ filtros }: RolesClientProps) {
               mode="crear"
               crearRol={crearRol}
               actualizarRol={actualizarRol}
-              onSuccess={async () => {
+              onSuccess={() => {
                 setCrearAbierto(false)
                 toast.success("Rol creado")
-                await listarRoles({
-                  q: filtros.q,
-                  estado: filtros.estado,
-                  page: filtros.page,
-                  por: filtros.porPagina,
-                })
               }}
             />
           </div>
@@ -540,15 +513,9 @@ export function RolesClient({ filtros }: RolesClientProps) {
                 rol={editar}
                 crearRol={crearRol}
                 actualizarRol={actualizarRol}
-                onSuccess={async () => {
+                onSuccess={() => {
                   setEditar(null)
                   toast.success("Rol actualizado")
-                  await listarRoles({
-                    q: filtros.q,
-                    estado: filtros.estado,
-                    page: filtros.page,
-                    por: filtros.porPagina,
-                  })
                 }}
               />
             )}

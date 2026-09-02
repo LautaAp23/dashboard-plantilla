@@ -407,3 +407,20 @@ Errores: 400 (Zod/auto-modificación), 404 (P2025 / inexistente), 409 (email/DNI
 - **Compatibilidad:** las server actions (`lib/usuarios/actions.ts`) se conservan delegando en el
   servicio. La cadena principal de la UI es hooks → API → servicio → Prisma.
 
+## 16. Regla de persistencia: sin NULLs
+
+Regla para TODO el sistema (ver también `AGENTS.md`):
+
+- **Nunca se persiste `null` en PostgreSQL.** Los campos opcionales de entrada
+  se guardan como string vacío (`""`). En el módulo de usuarios, `direccion_user`
+  y `telefono_user` son `NOT NULL DEFAULT ''`.
+- **Trazabilidad por id, no por email:** `usuario_creador` y `usuario_modificador`
+  almacenan el **id** del usuario de sesión que ejecutó la acción. El email puede
+  cambiar y no debe romper la trazabilidad. Al leer, se hace join con la tabla
+  `User` para exponer email y nombre del creador/modificador (ver `queries.ts`).
+  Al crear, `usuario_modificador` se inicializa con el mismo id que `usuario_creador`
+  para no dejar nunca el campo en NULL.
+- **Excepción única y deliberada:** `ultima_conexion_user` puede ser `null`,
+  significa "el usuario nunca se conectó". La UI lo muestra como "—".
+- Aplicar la misma regla a módulos nuevos (roles, compras, ventas, sueldos).
+

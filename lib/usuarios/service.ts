@@ -15,6 +15,8 @@ import {
   type ActualizarUsuarioInput,
   type CrearUsuarioInput,
 } from "@/lib/usuarios/schemas"
+import { generarPassword } from "@/lib/utils"
+import { enviarEmail } from "@/lib/mail"
 import {
   DominioError,
   type SessionUser,
@@ -63,7 +65,7 @@ export async function obtenerUsuario(
   return usuario
 }
 
-/** Crea un usuario validando email/DNI duplicados y encriptando la contraseña. */
+/** Crea un usuario validando email/DNI duplicados, generando contraseña y enviando email. */
 export async function crearUsuario(
   input: CrearUsuarioInput,
   sessionUser: SessionUser
@@ -74,14 +76,15 @@ export async function crearUsuario(
   }
   const datos = parsed.data
 
-  await validarRolActivo(datos.id_rol)
-
-  const existente = await prisma.user.findFirst({
-    where: {
-      OR: [{ email_user: datos.email_user }, { dni_user: datos.dni_user }],
-    },
-    select: { email_user: true, dni_user: true },
-  })
+  const [, existente] = await Promise.all([
+    validarRolActivo(datos.id_rol),
+    prisma.user.findFirst({
+      where: {
+        OR: [{ email_user: datos.email_user }, { dni_user: datos.dni_user }],
+      },
+      select: { email_user: true, dni_user: true },
+    }),
+  ])
   if (existente) {
     if (existente.email_user === datos.email_user) {
       throw new DominioError(
@@ -92,19 +95,38 @@ export async function crearUsuario(
     throw new DominioError("DUPLICADO_DNI", "Ya existe un usuario con ese DNI")
   }
 
+  const passwordTemporal = generarPassword(12)
+  const passwordHash = await bcrypt.hash(passwordTemporal, BCRYPT_SALT)
+
   const creado = await prisma.user.create({
     data: {
       email_user: datos.email_user,
-      password_user: await bcrypt.hash(datos.password_user, BCRYPT_SALT),
+      password_user: passwordHash,
       rol: { connect: { id_rol: datos.id_rol } },
       nombreyapellido_user: datos.nombreyapellido_user,
       dni_user: datos.dni_user,
       direccion_user: normalizarOpcional(datos.direccion_user),
       telefono_user: normalizarOpcional(datos.telefono_user),
-      // Trazabilidad: siempre del usuario de sesión, nunca del payload cliente.
-      usuario_creador: sessionUser.email,
+      // Trazabilidad: se guarda el ID del usuario de sesión, nunca email/nombre
+      // (regla "sin NULLs" y trazabilidad estable). Al crear se inicializa también
+      // usuario_modificador para que nunca quede en NULL.
+      usuario_creador: sessionUser.id,
+      usuario_modificador: sessionUser.id,
+      primer_login: true,
     },
-    select: { id: true },
+    select: { id: true, email_user: true },
+  })
+
+  // Enviar contraseña generada por email
+  await enviarEmail({
+    to: creado.email_user,
+    subject: "Bienvenido al sistema - Contraseña temporal",
+    html: `
+      <h3>Hola ${datos.nombreyapellido_user}</h3>
+      <p>Tu cuenta ha sido creada exitosamente. Tu contraseña temporal es: <strong>${passwordTemporal}</strong></p>
+      <p>Al iniciar sesión por primera vez, el sistema te pedirá que la cambies.</p>
+    `,
+    text: `Hola ${datos.nombreyapellido_user}. Tu contraseña temporal es: ${passwordTemporal}. Al iniciar sesión por primera vez, el sistema te pedirá que la cambies.`,
   })
 
   return creado.id
@@ -150,11 +172,8 @@ export async function actualizarUsuario(
     rol: { connect: { id_rol: datos.id_rol } },
     direccion_user: normalizarOpcional(datos.direccion_user),
     telefono_user: normalizarOpcional(datos.telefono_user),
-    usuario_modificador: sessionUser.email,
-  }
-
-  if (datos.nueva_password_user) {
-    data.password_user = await bcrypt.hash(datos.nueva_password_user, BCRYPT_SALT)
+    // Trazabilidad: se guarda el ID del usuario de sesión, nunca email/nombre.
+    usuario_modificador: sessionUser.id,
   }
 
   try {
@@ -189,7 +208,7 @@ async function setEstado(
       where: { id: userId },
       data: {
         estado_user: estado,
-        usuario_modificador: sessionUser.email,
+        usuario_modificador: sessionUser.id,
       },
     })
   } catch (error) {

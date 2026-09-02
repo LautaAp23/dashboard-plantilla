@@ -39,18 +39,11 @@ const emailSchema = z
   .email("El formato del email no es válido")
   .max(254, "El email no puede superar los 254 caracteres")
 
-const passwordSchema = z
-  .string()
-  .min(8, "La contraseña debe tener al menos 8 caracteres")
-  .max(72, "La contraseña no puede superar los 72 caracteres")
-
+// Campo opcional de entrada: se normaliza a string vacío (""), NUNCA a null
+// (regla de persistencia "sin NULLs"). La conversión final la hace
+// `normalizarOpcional` en el servicio antes de persistir.
 const opcionalSchema = (max: number, mensaje: string) =>
-  z
-    .string()
-    .trim()
-    .max(max, mensaje)
-    .optional()
-    .or(z.literal(""))
+  z.string().trim().max(max, mensaje).optional().or(z.literal(""))
 
 export const crearUsuarioSchema = z.strictObject({
   nombreyapellido_user: nombreSchema,
@@ -59,7 +52,6 @@ export const crearUsuarioSchema = z.strictObject({
   direccion_user: opcionalSchema(200, "La dirección no puede superar los 200 caracteres"),
   telefono_user: opcionalSchema(30, "El teléfono no puede superar los 30 caracteres"),
   id_rol: idRolSchema,
-  password_user: passwordSchema,
 })
 
 export const actualizarUsuarioSchema = z
@@ -70,29 +62,6 @@ export const actualizarUsuarioSchema = z
     direccion_user: opcionalSchema(200, "La dirección no puede superar los 200 caracteres"),
     telefono_user: opcionalSchema(30, "El teléfono no puede superar los 30 caracteres"),
     id_rol: idRolSchema,
-    // Cambio de clave opcional. Si se completa nueva_password_user,
-    // debe coindicir con confirmar_password_user.
-    nueva_password_user: passwordSchema.optional().or(z.literal("")),
-    confirmar_password_user: z.string().optional().or(z.literal("")),
-  })
-  .superRefine((data, ctx) => {
-    if (data.nueva_password_user && !data.confirmar_password_user) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Confirmá la nueva contraseña",
-        path: ["confirmar_password_user"],
-      })
-    }
-    if (
-      data.confirmar_password_user &&
-      data.nueva_password_user !== data.confirmar_password_user
-    ) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Las contraseñas no coinciden",
-        path: ["confirmar_password_user"],
-      })
-    }
   })
 
 /** Query params del endpoint GET /api/usuarios (listado con filtros). */
@@ -110,7 +79,9 @@ export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type CrearUsuarioInput = z.infer<typeof crearUsuarioSchema>
 export type ActualizarUsuarioInput = z.infer<typeof actualizarUsuarioSchema>
 
-export function normalizarOpcional(valor: string | undefined): string | null {
+// Regla de persistencia "sin NULLs": un opcional se reduce a string vacío ("").
+// El string vacío se persiste literal, nunca null.
+export function normalizarOpcional(valor: string | null | undefined): string {
   const limpio = valor?.trim()
-  return limpio ? limpio : null
+  return limpio ? limpio : ""
 }

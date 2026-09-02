@@ -99,8 +99,7 @@ export async function actualizarRol(
   }
   const { nombre_rol } = parsed.data
 
-  await obtenerRol(id)
-  await validarNombreDisponible(nombre_rol, id)
+  await Promise.all([obtenerRol(id), validarNombreDisponible(nombre_rol, id)])
 
   await prisma.rol.update({
     where: { id_rol: id },

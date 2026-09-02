@@ -14,11 +14,11 @@ import {
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import type { UsuarioListado } from "@/lib/usuarios/queries"
 import { useUsuarios } from "@/hooks/useUsuarios"
-import { useRoles } from "@/hooks/useRoles"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -78,6 +78,8 @@ const COLUMNAS = [
   { id: "role_user", label: "Rol" },
   { id: "estado_user", label: "Estado" },
   { id: "fechayhora_user", label: "Fecha de alta" },
+  { id: "telefono_user", label: "Teléfono" },
+  { id: "direccion_user", label: "Dirección" },
   { id: "ultima_conexion_user", label: "Última conexión" },
   { id: "usuario_creador", label: "Creado por" },
   { id: "usuario_modificador", label: "Modificado por" },
@@ -85,6 +87,15 @@ const COLUMNAS = [
 ] as const
 
 type ColumnaId = (typeof COLUMNAS)[number]["id"]
+
+// Columnas ocultas por defecto: son las de datos de contacto y las de
+// trazabilidad de modificación. El resto se muestran inicialmente.
+const COLUMNAS_OCULTAS_POR_DEFECTO: ReadonlySet<ColumnaId> = new Set<ColumnaId>([
+  "telefono_user",
+  "direccion_user",
+  "usuario_modificador",
+  "fechayhora_modificacion",
+])
 
 const OPCIONES_ESTADO: { valor: FiltrosEstado; label: string }[] = [
   { valor: "activos", label: "Activos" },
@@ -100,6 +111,15 @@ function formatearFecha(valor: Date | string | null | undefined): string {
     dateStyle: "short",
     timeStyle: "short",
   })
+}
+
+// Trazabilidad: usuario_creador/usuario_modificador guardan el ID del autor.
+// En la tabla se muestra el nombre y el email resueltos por join.
+function formatearTrazador(
+  autor: { email_user: string; nombreyapellido_user: string } | null
+): string {
+  if (!autor) return "—"
+  return `${autor.nombreyapellido_user} · ${autor.email_user}`
 }
 
 function construirPaginas(page: number, totalPaginas: number): (number | "…")[] {
@@ -132,47 +152,55 @@ export function UsuariosClient({
   const pathname = usePathname()
   const { confirm, ConfirmDialog } = useConfirm()
 
+  const filtrosQuery = {
+    q: filtros.q,
+    estado: filtros.estado,
+    desde: filtros.desde || undefined,
+    hasta: filtros.hasta || undefined,
+    page: filtros.page,
+    por: filtros.porPagina,
+  }
+
   const {
     data,
     cargando,
     errorLista,
-    listarUsuarios,
     crearUsuario,
     actualizarUsuario,
     darDeBaja,
     reactivar,
     accionPendiente,
-  } = useUsuarios()
+  } = useUsuarios(filtrosQuery)
 
   const [columnaVisible, setColumnaVisible] = useState<Set<ColumnaId>>(
-    () => new Set(COLUMNAS.map((c) => c.id))
+    () =>
+      new Set(
+        COLUMNAS.map((c) => c.id).filter(
+          (id) => !COLUMNAS_OCULTAS_POR_DEFECTO.has(id)
+        )
+      )
   )
   const [busquedaLocal, setBusquedaLocal] = useState(filtros.q)
   const [prevQ, setPrevQ] = useState(filtros.q)
 
-  // Roles activos para el selector del formulario de usuario.
-  const { listarRoles } = useRoles()
-  const [roles, setRoles] = useState<
-    { id_rol: string; nombre_rol: string; es_admin: boolean }[]
-  >([])
+  const rolesQuery = useQuery({
+    queryKey: ["roles", "select", "activos"],
+    queryFn: async () => {
+      const respuesta = await fetch("/api/roles?estado=activos&por=100", {
+        credentials: "include",
+        cache: "no-store",
+      })
+      const cuerpo = await respuesta.json()
+      if (!respuesta.ok || !cuerpo?.ok) return []
+      return cuerpo.data.roles.map((rol: { id_rol: string; nombre_rol: string; es_admin: boolean }) => ({
+        id_rol: rol.id_rol,
+        nombre_rol: rol.nombre_rol,
+        es_admin: rol.es_admin,
+      }))
+    },
+  })
 
-  useEffect(() => {
-    let activo = true
-    listarRoles({ estado: "activos", por: 100 }).then((data) => {
-      if (activo && data) {
-        setRoles(
-          data.roles.map((rol) => ({
-            id_rol: rol.id_rol,
-            nombre_rol: rol.nombre_rol,
-            es_admin: rol.es_admin,
-          }))
-        )
-      }
-    })
-    return () => {
-      activo = false
-    }
-  }, [listarRoles])
+  const roles = rolesQuery.data ?? []
 
   // Sincroniza el input con el valor de la URL (p. ej. navegación con botón atrás).
   if (prevQ !== filtros.q) {
@@ -181,26 +209,6 @@ export function UsuariosClient({
   }
   const [crearAbierto, setCrearAbierto] = useState(false)
   const [editar, setEditar] = useState<UsuarioListado | null>(null)
-
-  // La tabla se alimenta vía hook → GET /api/usuarios (con los filtros de la URL).
-  useEffect(() => {
-    listarUsuarios({
-      q: filtros.q,
-      estado: filtros.estado,
-      desde: filtros.desde || undefined,
-      hasta: filtros.hasta || undefined,
-      page: filtros.page,
-      por: filtros.porPagina,
-    })
-  }, [
-    filtros.q,
-    filtros.estado,
-    filtros.desde,
-    filtros.hasta,
-    filtros.page,
-    filtros.porPagina,
-    listarUsuarios,
-  ])
 
   // Los errores del listado se muestran como notificación, no arriba de la card.
   useEffect(() => {
@@ -282,15 +290,6 @@ export function UsuariosClient({
       return
     }
     toast.success("Usuario dado de baja")
-    // Recarga la tabla desde el endpoint HTTP.
-    await listarUsuarios({
-      q: filtros.q,
-      estado: filtros.estado,
-      desde: filtros.desde || undefined,
-      hasta: filtros.hasta || undefined,
-      page: filtros.page,
-      por: filtros.porPagina,
-    })
   }
 
   async function manejarReactivar(usuario: UsuarioListado) {
@@ -307,14 +306,33 @@ export function UsuariosClient({
       return
     }
     toast.success("Usuario reactivado")
-    await listarUsuarios({
-      q: filtros.q,
-      estado: filtros.estado,
-      desde: filtros.desde || undefined,
-      hasta: filtros.hasta || undefined,
-      page: filtros.page,
-      por: filtros.porPagina,
+  }
+
+  async function solicitarCambioPassword(usuario: UsuarioListado) {
+    const ok = await confirm({
+      title: "Solicitar cambio de contraseña",
+      description: `¿Seguro que querés solicitar un cambio de contraseña para ${usuario.nombreyapellido_user}? Se enviará una contraseña nueva a su correo electrónico.`,
+      confirmLabel: "Solicitar cambio",
+      variant: "destructive",
     })
+    if (!ok) return
+
+    try {
+      const respuesta = await fetch(`/api/usuarios/${usuario.id}/solicitar-cambio-password`, {
+        method: "POST",
+        credentials: "include",
+      })
+      const data = await respuesta.json()
+      
+      if (!respuesta.ok) {
+        toast.error(data.error ?? "No se pudo solicitar el cambio de contraseña")
+        return
+      }
+      
+      toast.success(data.mensaje ?? "Solicitud realizada exitosamente")
+    } catch {
+      toast.error("Error al solicitar el cambio de contraseña")
+    }
   }
 
   const dataLista = data ?? {
@@ -495,16 +513,26 @@ export function UsuariosClient({
                             {formatearFecha(usuario.fechayhora_user)}
                           </TableCell>
                         )}
+                        {verColumna("telefono_user") && (
+                          <TableCell>{usuario.telefono_user || "—"}</TableCell>
+                        )}
+                        {verColumna("direccion_user") && (
+                          <TableCell>{usuario.direccion_user || "—"}</TableCell>
+                        )}
                         {verColumna("ultima_conexion_user") && (
                           <TableCell>
                             {formatearFecha(usuario.ultima_conexion_user)}
                           </TableCell>
                         )}
                         {verColumna("usuario_creador") && (
-                          <TableCell>{usuario.usuario_creador}</TableCell>
+                          <TableCell>
+                            {formatearTrazador(usuario.creadoPor)}
+                          </TableCell>
                         )}
                         {verColumna("usuario_modificador") && (
-                          <TableCell>{usuario.usuario_modificador ?? "—"}</TableCell>
+                          <TableCell>
+                            {formatearTrazador(usuario.modificadoPor)}
+                          </TableCell>
                         )}
                         {verColumna("fechayhora_modificacion") && (
                           <TableCell>
@@ -559,6 +587,12 @@ export function UsuariosClient({
                                     Reactivar
                                   </DropdownMenuItem>
                                 )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => solicitarCambioPassword(usuario)}
+                                >
+                                  Solicitar cambio de contraseña
+                                </DropdownMenuItem>
                               </DropdownMenuGroup>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -661,17 +695,9 @@ export function UsuariosClient({
               roles={roles}
               crearUsuario={crearUsuario}
               actualizarUsuario={actualizarUsuario}
-              onSuccess={async () => {
+              onSuccess={() => {
                 setCrearAbierto(false)
                 toast.success("Usuario creado")
-                await listarUsuarios({
-                  q: filtros.q,
-                  estado: filtros.estado,
-                  desde: filtros.desde || undefined,
-                  hasta: filtros.hasta || undefined,
-                  page: filtros.page,
-                  por: filtros.porPagina,
-                })
               }}
             />
           </div>
@@ -686,7 +712,7 @@ export function UsuariosClient({
           <DialogHeader>
             <DialogTitle>Editar usuario</DialogTitle>
             <DialogDescription>
-              Actualizá los datos personales, el rol o la contraseña.
+              Actualizá los datos personales del usuario o su rol.
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[70dvh] overflow-y-auto p-4 pt-4 sm:p-6 sm:pt-4">
@@ -697,17 +723,9 @@ export function UsuariosClient({
                 roles={roles}
                 crearUsuario={crearUsuario}
                 actualizarUsuario={actualizarUsuario}
-                onSuccess={async () => {
+                onSuccess={() => {
                   setEditar(null)
                   toast.success("Usuario actualizado")
-                  await listarUsuarios({
-                    q: filtros.q,
-                    estado: filtros.estado,
-                    desde: filtros.desde || undefined,
-                    hasta: filtros.hasta || undefined,
-                    page: filtros.page,
-                    por: filtros.porPagina,
-                  })
                 }}
               />
             )}

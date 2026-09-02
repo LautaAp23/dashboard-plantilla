@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import type { ListarRolesResult } from "@/lib/roles/queries"
 import type {
@@ -9,21 +9,7 @@ import type {
 } from "@/lib/roles/schemas"
 import type { ResultadoAccion } from "@/lib/usuarios/types"
 
-/**
- * Hook cliente del módulo de roles.
- * Flujo: UI → hook → endpoint HTTP → servicio → Prisma.
- *
- * - Solo consume endpoints HTTP (no toca Prisma ni server actions).
- * - fetch con credentials incluido (sesión de cookies) y cache: no-store.
- */
-
 const API_BASE = "/api/roles"
-
-type ListaEstado = {
-  data: ListarRolesResult | null
-  cargando: boolean
-  error: string | null
-}
 
 type ListarRolesFiltros = {
   q?: string
@@ -82,119 +68,121 @@ function construirUrlLista(filtros: ListarRolesFiltros): string {
   return qs ? `${API_BASE}?${qs}` : API_BASE
 }
 
-export function useRoles() {
-  const [lista, setLista] = useState<ListaEstado>({
-    data: null,
-    cargando: false,
-    error: null,
+export function useRoles(filtros?: ListarRolesFiltros) {
+  const queryClient = useQueryClient()
+
+  const listarQuery = useQuery({
+    queryKey: ["roles", filtros],
+    queryFn: async () => {
+      if (!filtros) return null
+      const data = await peticion(construirUrlLista(filtros)).then((r) =>
+        procesar<ListarRolesResult>(r)
+      )
+      return data
+    },
+    enabled: !!filtros,
   })
-  const [accionPendiente, setAccionPendiente] = useState<string | null>(null)
 
-  /** Carga / recarga el listado con los filtros dados. */
-  const listarRoles = useCallback(
-    async (filtros: ListarRolesFiltros): Promise<ListarRolesResult | null> => {
-      setLista((prev) => ({ ...prev, cargando: true, error: null }))
-      try {
-        const data = await peticion(construirUrlLista(filtros)).then((r) =>
-          procesar<ListarRolesResult>(r)
-        )
-        setLista({ data, cargando: false, error: null })
-        return data
-      } catch (error) {
-        const mensaje = extraerMensaje(error)
-        setLista({ data: null, cargando: false, error: mensaje })
-        return null
-      }
+  const crearMutation = useMutation({
+    mutationFn: async (input: CrearRolInput) => {
+      const respuesta = await peticion(API_BASE, {
+        method: "POST",
+        body: JSON.stringify(input),
+      })
+      await procesar(respuesta)
     },
-    []
-  )
-
-  /** Obtiene el detalle de un rol. */
-  const obtenerRol = useCallback(async (id: string) => {
-    try {
-      const respuesta = await peticion(`${API_BASE}/${id}`)
-      return await procesar(respuesta)
-    } catch {
-      return null
-    }
-  }, [])
-
-  /** Crea un rol. */
-  const crearRol = useCallback(
-    async (input: CrearRolInput): Promise<ResultadoAccion> => {
-      setAccionPendiente("crear")
-      try {
-        const respuesta = await peticion(API_BASE, {
-          method: "POST",
-          body: JSON.stringify(input),
-        })
-        await procesar(respuesta)
-        return { success: true }
-      } catch (error) {
-        return { success: false, error: extraerMensaje(error) }
-      } finally {
-        setAccionPendiente(null)
-      }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["roles"] })
     },
-    []
-  )
+  })
 
-  const actualizarRol = useCallback(
-    async (id: string, input: ActualizarRolInput): Promise<ResultadoAccion> => {
-      setAccionPendiente("actualizar")
-      try {
-        const respuesta = await peticion(`${API_BASE}/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify(input),
-        })
-        await procesar(respuesta)
-        return { success: true }
-      } catch (error) {
-        return { success: false, error: extraerMensaje(error) }
-      } finally {
-        setAccionPendiente(null)
-      }
+  const actualizarMutation = useMutation({
+    mutationFn: async ({ id, input }: { id: string; input: ActualizarRolInput }) => {
+      const respuesta = await peticion(`${API_BASE}/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      })
+      await procesar(respuesta)
     },
-    []
-  )
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
 
-  async function cambiarEstado(
-    id: string,
-    accion: "baja" | "reactivar"
-  ): Promise<ResultadoAccion> {
-    setAccionPendiente(id)
-    try {
-      const respuesta = await peticion(`${API_BASE}/${id}/${accion}`, {
+  const bajaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const respuesta = await peticion(`${API_BASE}/${id}/baja`, {
         method: "POST",
       })
       await procesar(respuesta)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: extraerMensaje(error) }
-    } finally {
-      setAccionPendiente(null)
-    }
-  }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
 
-  const darDeBaja = useCallback((id: string) => cambiarEstado(id, "baja"), [])
-  const reactivar = useCallback(
-    (id: string) => cambiarEstado(id, "reactivar"),
-    []
-  )
+  const reactivarMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const respuesta = await peticion(`${API_BASE}/${id}/reactivar`, {
+        method: "POST",
+      })
+      await procesar(respuesta)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["roles"] })
+    },
+  })
 
   return {
-    // Estado del listado
-    data: lista.data,
-    cargando: lista.cargando,
-    errorLista: lista.error,
-    // Estado compartido de mutaciones
-    accionPendiente,
-    // Funciones
-    listarRoles,
-    obtenerRol,
-    crearRol,
-    actualizarRol,
-    darDeBaja,
-    reactivar,
+    data: listarQuery.data ?? null,
+    cargando: listarQuery.isLoading,
+    errorLista: listarQuery.error ? extraerMensaje(listarQuery.error) : null,
+
+    crearRol: async (input: CrearRolInput): Promise<ResultadoAccion> => {
+      try {
+        await crearMutation.mutateAsync(input)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    actualizarRol: async (
+      id: string,
+      input: ActualizarRolInput
+    ): Promise<ResultadoAccion> => {
+      try {
+        await actualizarMutation.mutateAsync({ id, input })
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    darDeBaja: async (id: string): Promise<ResultadoAccion> => {
+      try {
+        await bajaMutation.mutateAsync(id)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    reactivar: async (id: string): Promise<ResultadoAccion> => {
+      try {
+        await reactivarMutation.mutateAsync(id)
+        return { success: true }
+      } catch (error) {
+        return { success: false, error: extraerMensaje(error) }
+      }
+    },
+
+    accionPendiente: crearMutation.isPending
+      ? "crear"
+      : actualizarMutation.isPending
+        ? "actualizar"
+        : bajaMutation.isPending || reactivarMutation.isPending
+          ? "accion"
+          : null,
   }
 }

@@ -73,7 +73,6 @@ export function UsuarioForm({
     nombreyapellido_user: "",
     dni_user: "",
     email_user: "",
-    password_user: "",
     direccion_user: "",
     telefono_user: "",
     id_rol: rolPorDefecto,
@@ -86,23 +85,25 @@ export function UsuarioForm({
     direccion_user: usuario?.direccion_user ?? "",
     telefono_user: usuario?.telefono_user ?? "",
     id_rol: usuario?.id_rol ?? rolPorDefecto,
-    nueva_password_user: "",
-    confirmar_password_user: "",
   }
 
-  const form = useForm<CrearUsuarioInput | ActualizarUsuarioInput>({
-    resolver: zodResolver(esCrear ? crearUsuarioSchema : actualizarUsuarioSchema),
+  const form = useForm<CrearUsuarioInput>({
+    resolver:
+      esCrear
+        ? zodResolver(crearUsuarioSchema)
+        : zodResolver(actualizarUsuarioSchema),
     defaultValues: esCrear ? crearDefault : editarDefault,
   })
 
-  async function onSubmit(
-    values: CrearUsuarioInput | ActualizarUsuarioInput
-  ): Promise<void> {
+  // Ambos schemas (crear/actualizar) producen el mismo contrato de datos:
+  // no llevan password; el alta de contraseña se maneja por email al crear
+  // y el cambio se resuelve con "solicitar cambio de contraseña".
+  async function onSubmit(values: CrearUsuarioInput): Promise<void> {
     setError(null)
 
     const resultado: ResultadoAccion = esCrear
-      ? await crearUsuario(values as CrearUsuarioInput)
-      : await actualizarUsuario(usuario!.id, values as ActualizarUsuarioInput)
+      ? await crearUsuario(values)
+      : await actualizarUsuario(usuario!.id, values)
 
     if (!resultado.success) {
       setError(resultado.error)
@@ -220,64 +221,12 @@ export function UsuarioForm({
               )}
             />
 
-            {esCrear ? (
-              <FormField
-                control={form.control}
-                name="password_user"
-                render={({ field }) => (
-                  <FormItem className="sm:col-span-2">
-                    <FormLabel>Contraseña</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder="Mínimo 8 caracteres"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ) : (
-              <>
-                <FormField
-                  control={form.control}
-                  name="nueva_password_user"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nueva contraseña</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          autoComplete="new-password"
-                          placeholder="Dejar vacío para no cambiar"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="confirmar_password_user"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Confirmar contraseña</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          autoComplete="new-password"
-                          placeholder="Repetí la nueva contraseña"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+            {esCrear && (
+              <div className="sm:col-span-2 rounded-lg border border-muted bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+                Al crear el usuario se generará una contraseña temporal y se
+                enviará al correo electrónico indicado. En su primer inicio de
+                sesión, el sistema le pedirá que la cambie.
+              </div>
             )}
 
             <FormField
