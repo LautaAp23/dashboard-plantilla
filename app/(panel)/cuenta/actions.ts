@@ -38,20 +38,24 @@ export async function changePassword(
     return { error: "No autorizado" }
   }
 
-  const isValid = await bcrypt.compare(currentPassword, user.password)
+  const isValid = await bcrypt.compare(currentPassword, user.password_user)
 
   if (!isValid) {
     return { error: "La contraseña actual es incorrecta" }
   }
 
-  if (await bcrypt.compare(newPassword, user.password)) {
+  if (await bcrypt.compare(newPassword, user.password_user)) {
     return { error: "La nueva contraseña debe ser distinta a la actual" }
   }
 
   try {
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: await bcrypt.hash(newPassword, 10) },
+      data: {
+        password_user: await bcrypt.hash(newPassword, 10),
+        primer_login: false,
+        usuario_modificador: session.user.id,
+      },
     })
   } catch {
     return { error: "No se pudo actualizar la contraseña" }

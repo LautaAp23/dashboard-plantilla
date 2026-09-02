@@ -38,11 +38,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
+  // Cambio de contraseña obligatorio (primer inicio de sesión o solicitud de
+  // cambio): se fuerza a la pantalla de login, donde se pide establecer una
+  // nueva contraseña antes de poder acceder al panel. Esto evita que el
+  // usuario pueda saltarse el paso navegando por el dashboard.
+  const primerLogin = Boolean(token?.primer_login)
+  if (token && primerLogin) {
+    if (pathname !== "/login") {
+      return NextResponse.redirect(new URL("/login", request.url))
+    }
+    return NextResponse.next()
+  }
+
   if (token && (isPublicRoute || pathname === "/")) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 
-  if (token && !isRouteAllowed(pathname, token.role as string | undefined)) {
+  if (token && !isRouteAllowed(pathname, token.esAdmin ?? false)) {
     return NextResponse.redirect(new URL("/home", request.url))
   }
 

@@ -12,13 +12,37 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Role {
-  ADMIN
+model Rol {
+  id_rol                  String   @id @default(cuid())
+  nombre_rol              String   @unique
+  es_admin                Boolean  @default(false)
+  fechayhora_rol          DateTime @default(now())
+  estado_rol              Boolean  @default(true)
+  usuario_creador         String
+
+  usuarios User[]
 }
 
 model User {
-  id       String @id @default(cuid())
-  email    String @unique
-  password String
-  role     Role   @default(ADMIN)
+  id                      String   @id @default(cuid())
+  email_user              String   @unique
+  password_user           String
+  id_rol                  String
+  rol                     Rol      @relation(fields: [id_rol], references: [id_rol])
+  nombreyapellido_user    String
+  dni_user                String   @unique
+  // Campos opcionales de entrada: se persisten como "" en vez de null (regla: sin NULLs).
+  direccion_user          String   @default("")
+  telefono_user           String   @default("")
+  fechayhora_user         DateTime @default(now())
+  // Única excepción deliberada a la regla sin NULLs: null = "el usuario nunca se conectó".
+  ultima_conexion_user    DateTime?
+  // Trazabilidad: guardan el ID del usuario de sesión (nunca email/nombre).
+  usuario_creador         String
+  usuario_modificador     String
+  fechayhora_modificacion DateTime @updatedAt
+  estado_user             Boolean  @default(true)
+  primer_login            Boolean  @default(true)
+
+  @@index([estado_user, fechayhora_user])
 }

@@ -1,9 +1,9 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { signIn } from "next-auth/react"
+import { getSession, signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -26,6 +26,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { ChangePasswordForm } from "@/app/(panel)/cuenta/change-password-form"
 
 const loginSchema = z.object({
   email: z
@@ -48,6 +49,10 @@ function getSafeCallbackUrl(): string {
 export function LoginForm() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
+  // Cuando el usuario debe cambiar la contraseña por primer inicio de sesión,
+  // el cambio se hace en esta misma pantalla (login) y no dentro del panel,
+  // para que no pueda saltarse el paso navegando por el dashboard.
+  const [cambioPendiente, setCambioPendiente] = useState(false)
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -56,6 +61,32 @@ export function LoginForm() {
       password: "",
     },
   })
+
+  // Si ya hay una sesión activa con cambio de contraseña pendiente (por
+  // ejemplo, tras ser redirigido desde el panel), muestra directamente el
+  // formulario de cambio en vez del formulario de credenciales.
+  useEffect(() => {
+    let activo = true
+    getSession().then((session) => {
+      const primerLogin = Boolean(session?.user?.primer_login)
+      if (activo && primerLogin) {
+        setCambioPendiente(true)
+      }
+    })
+    return () => {
+      activo = false
+    }
+  }, [])
+
+  async function onLoginExitoso() {
+    const session = await getSession()
+    const primerLogin = Boolean(session?.user?.primer_login)
+    if (primerLogin) {
+      setCambioPendiente(true)
+      return
+    }
+    router.push(getSafeCallbackUrl())
+  }
 
   async function onSubmit(values: LoginValues) {
     setError(null)
@@ -77,8 +108,34 @@ export function LoginForm() {
     }
 
     if (result?.ok) {
-      router.push(getSafeCallbackUrl())
+      await onLoginExitoso()
     }
+  }
+
+  // Refresca la sesión (el token se sincroniza desde la BD, primer_login pasa
+  // a false) y navega al panel.
+  async function onChangePasswordExitoso() {
+    await getSession()
+    router.push("/home")
+  }
+
+  if (cambioPendiente) {
+    return (
+      <div className="w-full max-w-md">
+        <Card className="mb-4 bg-white shadow-xl">
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-semibold text-gray-900">
+              hsse administracion
+            </CardTitle>
+            <CardDescription>
+              Como primera vez en el sistema, tenés que establecer una nueva
+              contraseña antes de continuar.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+        <ChangePasswordForm esPrimerLogin onSuccess={onChangePasswordExitoso} />
+      </div>
+    )
   }
 
   return (

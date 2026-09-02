@@ -19,9 +19,12 @@ export default async function PanelLayout({
 
   return (
     <div className="flex min-h-svh w-full bg-background">
-      <Sidebar role={session.user.role} />
+      <Sidebar esAdmin={session.user.esAdmin ?? false} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header role={session.user.role} userEmail={session.user.email} />
+        <Header
+          esAdmin={session.user.esAdmin ?? false}
+          userEmail={session.user.email}
+        />
         <main className="flex flex-1 flex-col gap-4 p-4 md:p-6">
           {children}
         </main>

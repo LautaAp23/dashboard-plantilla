@@ -1,6 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -42,10 +43,25 @@ const changePasswordSchema = z
 
 type ChangePasswordValues = z.infer<typeof changePasswordSchema>
 
-export function ChangePasswordForm() {
+type ChangePasswordFormProps = {
+  /**
+   * Configura el formulario para el flujo de "cambio obligatorio por primer
+   * inicio de sesión". Suelen mostrarse en la pantalla de login, no dentro del
+   * panel. Al terminar correctamente se invoca onSuccess para que el
+   * componente padre refresque la sesión y navegue.
+   */
+  esPrimerLogin?: boolean
+  onSuccess?: () => void | Promise<void>
+}
+
+export function ChangePasswordForm({
+  esPrimerLogin = false,
+  onSuccess,
+}: ChangePasswordFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const { confirm, ConfirmDialog } = useConfirm()
+  const router = useRouter()
 
   const form = useForm<ChangePasswordValues>({
     resolver: zodResolver(changePasswordSchema),
@@ -79,6 +95,13 @@ export function ChangePasswordForm() {
 
     setSuccess(true)
     form.reset()
+
+    if (onSuccess) {
+      await onSuccess()
+    } else if (esPrimerLogin) {
+      // Compatibilidad con el caso de uso dentro del panel.
+      router.push("/home")
+    }
   }
 
   return (
