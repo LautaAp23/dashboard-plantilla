@@ -53,7 +53,8 @@ export async function changePassword(
       where: { id: user.id },
       data: {
         password_user: await bcrypt.hash(newPassword, 10),
-        usuario_modificador: session.user.email ?? session.user.id,
+        primer_login: false,
+        usuario_modificador: session.user.id,
       },
     })
   } catch {

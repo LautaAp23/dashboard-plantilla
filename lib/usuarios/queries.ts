@@ -25,9 +25,51 @@ const USUARIO_SELECT = {
   estado_user: true,
 } satisfies Prisma.UserSelect
 
+// Datos del autor (creador/modificador) para la trazabilidad.
+// Las columnas usuario_creador/usuario_modificador guardan el ID del autor y,
+// al leer, se hace el join para exponer email y nombre (regla: id en DB, no email).
+const TRAZADO_SELECT = {
+  id: true,
+  email_user: true,
+  nombreyapellido_user: true,
+} satisfies Prisma.UserSelect
+
+export type UsuarioTrazado = Prisma.UserGetPayload<{
+  select: typeof TRAZADO_SELECT
+}>
+
 export type UsuarioListado = Prisma.UserGetPayload<{
   select: typeof USUARIO_SELECT
-}>
+}> & {
+  creadoPor: UsuarioTrazado | null
+  modificadoPor: UsuarioTrazado | null
+}
+
+/** Resuelve creador/modificador (ids) a su email y nombre mediante un solo query. */
+async function resolverTrazado(
+  usuarios: Prisma.UserGetPayload<{ select: typeof USUARIO_SELECT }>[]
+): Promise<UsuarioListado[]> {
+  const ids = new Set<string>()
+  for (const u of usuarios) {
+    if (u.usuario_creador) ids.add(u.usuario_creador)
+    if (u.usuario_modificador) ids.add(u.usuario_modificador)
+  }
+
+  const mapa = new Map<string, UsuarioTrazado>()
+  if (ids.size > 0) {
+    const autores = await prisma.user.findMany({
+      where: { id: { in: [...ids] } },
+      select: TRAZADO_SELECT,
+    })
+    for (const autor of autores) mapa.set(autor.id, autor)
+  }
+
+  return usuarios.map((u) => ({
+    ...u,
+    creadoPor: mapa.get(u.usuario_creador) ?? null,
+    modificadoPor: mapa.get(u.usuario_modificador) ?? null,
+  }))
+}
 
 export type ListarUsuariosParams = {
   /** Búsqueda por nombre y apellido, DNI o email. */
@@ -54,7 +96,13 @@ export type ListarUsuariosResult = {
 
 /** Detalle de un usuario por id (sin password_user). */
 export async function obtenerUsuario(id: string): Promise<UsuarioListado | null> {
-  return prisma.user.findUnique({ where: { id }, select: USUARIO_SELECT })
+  const usuario = await prisma.user.findUnique({
+    where: { id },
+    select: USUARIO_SELECT,
+  })
+  if (!usuario) return null
+  const [enriquecido] = await resolverTrazado([usuario])
+  return enriquecido
 }
 
 function finDelDia(fecha: Date): Date {
@@ -106,7 +154,7 @@ export async function listarUsuarios(
   ])
 
   return {
-    usuarios,
+    usuarios: await resolverTrazado(usuarios),
     total,
     page,
     porPagina,

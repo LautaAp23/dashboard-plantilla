@@ -31,12 +31,18 @@ model User {
   rol                     Rol      @relation(fields: [id_rol], references: [id_rol])
   nombreyapellido_user    String
   dni_user                String   @unique
-  direccion_user          String?
-  telefono_user           String?
+  // Campos opcionales de entrada: se persisten como "" en vez de null (regla: sin NULLs).
+  direccion_user          String   @default("")
+  telefono_user           String   @default("")
   fechayhora_user         DateTime @default(now())
+  // Única excepción deliberada a la regla sin NULLs: null = "el usuario nunca se conectó".
   ultima_conexion_user    DateTime?
+  // Trazabilidad: guardan el ID del usuario de sesión (nunca email/nombre).
   usuario_creador         String
-  usuario_modificador     String?
+  usuario_modificador     String
   fechayhora_modificacion DateTime @updatedAt
   estado_user             Boolean  @default(true)
+  primer_login            Boolean  @default(true)
+
+  @@index([estado_user, fechayhora_user])
 }
