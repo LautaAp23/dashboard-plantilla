@@ -79,9 +79,5 @@ export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuerySchema>
 export type CrearUsuarioInput = z.infer<typeof crearUsuarioSchema>
 export type ActualizarUsuarioInput = z.infer<typeof actualizarUsuarioSchema>
 
-// Regla de persistencia "sin NULLs": un opcional se reduce a string vacío ("").
-// El string vacío se persiste literal, nunca null.
-export function normalizarOpcional(valor: string | null | undefined): string {
-  const limpio = valor?.trim()
-  return limpio ? limpio : ""
-}
+// Re-exportado desde lib/validators.ts para compatibilidad con tests existentes.
+export { normalizarOpcional } from "@/lib/validators"

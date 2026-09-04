@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server"
 
-import { requireSessionAdmin } from "@/lib/api-auth"
+import { requireSessionAdmin } from "@/lib/auth-guard"
 import { badRequest, ok, notFound, unauthorized, manejarError } from "@/lib/api-response"
 import { prisma } from "@/lib/prisma"
 import { generarPassword } from "@/lib/utils"

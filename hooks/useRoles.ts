@@ -7,7 +7,8 @@ import type {
   ActualizarRolInput,
   CrearRolInput,
 } from "@/lib/roles/schemas"
-import type { ResultadoAccion } from "@/lib/usuarios/types"
+import type { ResultadoAccion } from "@/lib/types/common"
+import { extraerMensaje, peticion, procesar } from "@/hooks/use-api"
 
 const API_BASE = "/api/roles"
 
@@ -16,42 +17,6 @@ type ListarRolesFiltros = {
   estado?: "activos" | "inactivos" | "todos"
   page?: number
   por?: number
-}
-
-function extraerMensaje(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return "Ocurrió un error inesperado"
-}
-
-async function peticion(
-  url: string,
-  init?: RequestInit
-): Promise<Response> {
-  return fetch(url, {
-    credentials: "include",
-    cache: "no-store",
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  })
-}
-
-async function procesar<T>(respuesta: Response): Promise<T> {
-  let cuerpo: { ok: boolean; data?: T; error?: { message?: string } } | null
-  try {
-    cuerpo = await respuesta.json()
-  } catch {
-    cuerpo = null
-  }
-
-  if (!respuesta.ok || !cuerpo?.ok) {
-    const message = cuerpo?.error?.message ?? "Ocurrió un error inesperado"
-    throw new Error(message)
-  }
-
-  return cuerpo.data as T
 }
 
 function construirUrlLista(filtros: ListarRolesFiltros): string {

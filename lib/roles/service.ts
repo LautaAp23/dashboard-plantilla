@@ -15,7 +15,7 @@ import {
 import {
   DominioError,
   type SessionUser,
-} from "@/lib/usuarios/types"
+} from "@/lib/types/common"
 
 /**
  * Capa de lógica de negocio del módulo de roles.

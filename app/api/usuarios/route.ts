@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server"
 
-import { requireSessionAdmin } from "@/lib/api-auth"
+import { requireSessionAdmin } from "@/lib/auth-guard"
 import {
   badRequest,
   created,
