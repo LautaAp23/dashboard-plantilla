@@ -10,6 +10,18 @@ import { getAuthSecret } from "@/lib/auth-secret"
 
 const PUBLIC_ROUTES = ["/login"]
 
+function agregarSeguridad(response: NextResponse): NextResponse {
+  response.headers.set("X-Content-Type-Options", "nosniff")
+  response.headers.set("X-Frame-Options", "DENY")
+  response.headers.set("X-XSS-Protection", "1; mode=block")
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=()"
+  )
+  return response
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -29,13 +41,13 @@ export async function proxy(request: NextRequest) {
     const res = NextResponse.redirect(loginUrl)
     res.cookies.delete("next-auth.session-token")
     res.cookies.delete("__Secure-next-auth.session-token")
-    return res
+    return agregarSeguridad(res)
   }
 
   if (!token && !isPublicRoute) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("callbackUrl", pathname)
-    return NextResponse.redirect(loginUrl)
+    return agregarSeguridad(NextResponse.redirect(loginUrl))
   }
 
   // Cambio de contraseña obligatorio (primer inicio de sesión o solicitud de
@@ -45,20 +57,20 @@ export async function proxy(request: NextRequest) {
   const primerLogin = Boolean(token?.primer_login)
   if (token && primerLogin) {
     if (pathname !== "/login") {
-      return NextResponse.redirect(new URL("/login", request.url))
+      return agregarSeguridad(NextResponse.redirect(new URL("/login", request.url)))
     }
-    return NextResponse.next()
+    return agregarSeguridad(NextResponse.next())
   }
 
   if (token && (isPublicRoute || pathname === "/")) {
-    return NextResponse.redirect(new URL("/home", request.url))
+    return agregarSeguridad(NextResponse.redirect(new URL("/home", request.url)))
   }
 
   if (token && !isRouteAllowed(pathname, token.esAdmin ?? false)) {
-    return NextResponse.redirect(new URL("/home", request.url))
+    return agregarSeguridad(NextResponse.redirect(new URL("/home", request.url)))
   }
 
-  return NextResponse.next()
+  return agregarSeguridad(NextResponse.next())
 }
 
 export const config = {

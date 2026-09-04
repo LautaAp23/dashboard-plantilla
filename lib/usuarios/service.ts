@@ -11,16 +11,16 @@ import {
 import {
   actualizarUsuarioSchema,
   crearUsuarioSchema,
-  normalizarOpcional,
   type ActualizarUsuarioInput,
   type CrearUsuarioInput,
 } from "@/lib/usuarios/schemas"
 import { generarPassword } from "@/lib/utils"
 import { enviarEmail } from "@/lib/mail"
+import { normalizarOpcional } from "@/lib/validators"
 import {
   DominioError,
   type SessionUser,
-} from "@/lib/usuarios/types"
+} from "@/lib/types/common"
 
 /**
  * Capa de lógica de negocio del módulo de usuarios.

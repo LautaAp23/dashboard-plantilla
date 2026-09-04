@@ -1,4 +1,4 @@
-import { requireSessionAdmin } from "@/lib/api-auth"
+import { requireSessionAdmin } from "@/lib/auth-guard"
 import { manejarError, ok, unauthorized } from "@/lib/api-response"
 import { reactivarRol } from "@/lib/roles/service"
 

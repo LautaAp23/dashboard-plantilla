@@ -25,7 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { changePassword } from "@/app/(panel)/cuenta/actions"
+import { useCuenta } from "@/hooks/useCuenta"
 import { useConfirm } from "@/hooks/use-confirm"
 
 const changePasswordSchema = z
@@ -61,6 +61,7 @@ export function ChangePasswordForm({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const { confirm, ConfirmDialog } = useConfirm()
+  const { changePassword } = useCuenta()
   const router = useRouter()
 
   const form = useForm<ChangePasswordValues>({
@@ -83,12 +84,12 @@ export function ChangePasswordForm({
     setError(null)
     setSuccess(false)
 
-    const result = await changePassword(
-      values.currentPassword,
-      values.newPassword
-    )
+    const result = await changePassword({
+      currentPassword: values.currentPassword,
+      newPassword: values.newPassword,
+    })
 
-    if (result.error) {
+    if (!result.success) {
       setError(result.error)
       return
     }

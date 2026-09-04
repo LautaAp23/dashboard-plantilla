@@ -107,14 +107,19 @@ export const authOptions: NextAuthOptions = {
       // Sincronizar primer_login desde la BD cuando sigue en true. Así, tras
       // un cambio de contraseña exitoso (primer_login pasa a false en BD), el
       // JWT se actualiza y el middleware deja de forzar al usuario a /login.
+      // Optimización: throttling 60s para evitar hit a BD en cada request.
       try {
         if (token.id && token.primer_login) {
-          const usuario = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: { primer_login: true },
-          })
-          if (usuario && !usuario.primer_login) {
-            token.primer_login = false
+          const checkedAt = token.primerLoginCheckedAt as number | undefined
+          if (!checkedAt || now - checkedAt > 60_000) {
+            const usuario = await prisma.user.findUnique({
+              where: { id: token.id as string },
+              select: { primer_login: true },
+            })
+            token.primerLoginCheckedAt = now
+            if (usuario && !usuario.primer_login) {
+              token.primer_login = false
+            }
           }
         }
       } catch {
