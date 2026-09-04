@@ -1,6 +1,11 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 
 import type {
   ActualizarUsuarioInput,
@@ -40,6 +45,11 @@ export function useUsuarios(filtros: ListarUsuariosFiltros) {
       )
       return data
     },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 
   const crearMutation = useMutation({

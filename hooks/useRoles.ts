@@ -1,6 +1,11 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 
 import type { ListarRolesResult } from "@/lib/roles/queries"
 import type {
@@ -46,6 +51,11 @@ export function useRoles(filtros?: ListarRolesFiltros) {
       return data
     },
     enabled: !!filtros,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 
   const crearMutation = useMutation({

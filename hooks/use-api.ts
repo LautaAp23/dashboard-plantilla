@@ -14,7 +14,8 @@ export function extraerMensaje(error: unknown): string {
 export async function peticion(url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, {
     credentials: "include",
-    cache: "no-store",
+    // cache: "no-store" removido: React Query maneja staleness (30s) y
+    // evita revalidación forzada en cada focus/navigation
     ...init,
     headers: {
       "Content-Type": "application/json",

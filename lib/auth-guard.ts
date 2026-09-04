@@ -1,3 +1,4 @@
+import { cache } from "react"
 import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/lib/auth"
@@ -11,8 +12,12 @@ import type { SessionUser } from "@/lib/types/common"
  * pero cada handler reaplica la verificación (defensa en profundidad).
  */
 
+// Cache por request: evita múltiples getServerSession/JWT decodes dentro del
+// mismo render o Route Handler (layout + handler + service).
+const getCachedSession = cache(async () => getServerSession(authOptions))
+
 export async function requireSession(): Promise<SessionUser | null> {
-  const session = await getServerSession(authOptions)
+  const session = await getCachedSession()
   if (!session?.user?.id) return null
   return {
     id: session.user.id,
@@ -22,7 +27,7 @@ export async function requireSession(): Promise<SessionUser | null> {
 }
 
 export async function requireSessionAdmin(): Promise<SessionUser | null> {
-  const session = await getServerSession(authOptions)
+  const session = await getCachedSession()
   if (!session?.user?.id || !session.user.esAdmin) return null
   return {
     id: session.user.id,
