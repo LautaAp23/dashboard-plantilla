@@ -1,54 +1,22 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 
 import type {
   ActualizarUsuarioInput,
   CrearUsuarioInput,
 } from "@/lib/usuarios/schemas"
 import type { ListarUsuariosResult } from "@/lib/usuarios/queries"
-import type {
-  ListarUsuariosFiltros,
-  ResultadoAccion,
-} from "@/lib/usuarios/types"
+import type { ListarUsuariosFiltros } from "@/lib/usuarios/types"
+import type { ResultadoAccion } from "@/lib/types/common"
+import { extraerMensaje, peticion, procesar } from "@/hooks/use-api"
 
 const API_BASE = "/api/usuarios"
-
-function extraerMensaje(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return "Ocurrió un error inesperado"
-}
-
-async function peticion(
-  url: string,
-  init?: RequestInit
-): Promise<Response> {
-  return fetch(url, {
-    credentials: "include",
-    cache: "no-store",
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  })
-}
-
-async function procesar<T>(respuesta: Response): Promise<T> {
-  let cuerpo: { ok: boolean; data?: T; error?: { message?: string } } | null
-  try {
-    cuerpo = await respuesta.json()
-  } catch {
-    cuerpo = null
-  }
-
-  if (!respuesta.ok || !cuerpo?.ok) {
-    const message = cuerpo?.error?.message ?? "Ocurrió un error inesperado"
-    throw new Error(message)
-  }
-
-  return cuerpo.data as T
-}
 
 function construirUrlLista(filtros: ListarUsuariosFiltros): string {
   const params = new URLSearchParams()
@@ -77,6 +45,11 @@ export function useUsuarios(filtros: ListarUsuariosFiltros) {
       )
       return data
     },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 
   const crearMutation = useMutation({

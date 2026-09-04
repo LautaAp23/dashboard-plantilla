@@ -188,7 +188,6 @@ export function UsuariosClient({
     queryFn: async () => {
       const respuesta = await fetch("/api/roles?estado=activos&por=100", {
         credentials: "include",
-        cache: "no-store",
       })
       const cuerpo = await respuesta.json()
       if (!respuesta.ok || !cuerpo?.ok) return []
@@ -198,6 +197,10 @@ export function UsuariosClient({
         es_admin: rol.es_admin,
       }))
     },
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   })
 
   const roles = rolesQuery.data ?? []

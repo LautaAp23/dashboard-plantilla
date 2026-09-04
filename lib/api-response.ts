@@ -1,4 +1,4 @@
-import { DominioError } from "@/lib/usuarios/types"
+import { DominioError } from "@/lib/types/common"
 
 /**
  * Helpers compartidos de respuestas JSON estándar para los route handlers.
